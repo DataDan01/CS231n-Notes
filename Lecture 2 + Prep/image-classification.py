@@ -6,7 +6,6 @@ Created on Sun Jan 22 08:26:24 2017
 """
 import os
 
-
 os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n')
 
 exec(open("./Lecture 2 + Prep/data_utils.py").read(), globals())
