@@ -68,11 +68,11 @@ print(dist_mat.shape)
 
 plt.imshow(dist_mat, interpolation = 'none')
 
-# What is the cause behind the distinctly visible rows?
+### What is the cause behind the distinctly visible rows?
 
 # Rows are distinctly visible when a test example is either relatively far (red) or close (blue) to most of the training examples
 
-# What causes the columns?
+### What causes the columns?
 
 # This is when training examples are relatively far or close to test examples, we have more interest in the former than the latter since we want to predict on new data
 
