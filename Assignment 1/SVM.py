@@ -13,7 +13,7 @@ import numpy as np
 X_train, y_train, X_test, y_test = load_CIFAR10('../data/cifar-10-batches-py')
 
 # Subsample the data for more efficient code execution in this exercise.
-num_training = 49000
+num_training = 5000
 num_validation = 1000
 num_test = 1000
 
@@ -80,7 +80,7 @@ def svm_loss_naive(W, X, y, reg):
   
 # generate a random SVM weight matrix of small numbers
 W = np.random.randn(10, 3073) * 0.01 
-loss = svm_loss_naive(W, X_train, y_train, 0.00001)
+loss = svm_loss_naive(W, X_train, y_train, 0.1)
 print(loss) # 8 - 9 range
 
 # Adding in gradient
@@ -120,9 +120,9 @@ def svm_loss_naive(W, X, y, reg):
 
   return loss, dW
   
-W = np.random.randn(10, 3073) * 0.0001 
+W = np.random.randn(10, 3073) * 0.001 
 
-loss, grad = svm_loss_naive(W, X_train, y_train, 0.00001) 
+loss, grad = svm_loss_naive(W, X_train, y_train, 0.1) 
 
 loss
 
@@ -132,15 +132,25 @@ loss
 # An example could be where we're right below the kink and any increase will lead to nearly a matching increase in the output (once be break zero) but the gradient marks it as zero due to the indicator function
 # This is not a cause for concern and instead is a fact of life since gradients, by construction, are just tools that help us estimate things
 
-# Instead of vectorizing, let's try Cython
+# Vectorizing 
+X = X_train
+y = y_train
+reg = 0.1
 
-
-%load_ext Cython
-
-%%cython
-cpdef np.ndarray[np.int32_t, ndim=2] svm_loss_cython(np.ndarray[np.int32_t, ndim=2] W, np.ndarray[np.int32_t, ndim=2] X, np.ndarray[np.int32_t, ndim=1] y, float reg):
+@jit
+def svm_loss_vectorized(W, X, y, reg):
 
   dW = np.zeros(W.shape) # initialize the gradient as zero
+
+  scores = W.dot(X)
+ 
+  margins = scores - np.diagonal(scores[y,:]) + 1
+
+  margins[np.logical_or(margins == 1, margins <= 0)] = 0
+
+  dW = margins  # Need to decrease weights on wrong class and account for right one
+  
+  loss = np.sum(margins)/margins.shape[1] + reg*np.sum(W * W)
 
   # compute the loss and the gradient
   num_classes = W.shape[0]
