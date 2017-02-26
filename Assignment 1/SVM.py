@@ -242,6 +242,8 @@ W = svm_train(W, X_train, y_train, 5e-5, 1e5, 100)
 # Correct implementation below
 
 # Maybe try svm function for one example at a time and then apply to array
+from numba import jit
+
 @jit
 def svm_loss_indiv(W, X, y, reg):
     
@@ -270,7 +272,7 @@ def svm_loss_indiv(W, X, y, reg):
     dW[np.arange(dW.shape[0])!=margins] += X
     
     # Adding regularization gradient
-    dW += 2*reg*W    
+    dW += abs(2*reg*W)    
     
     return loss, dW    
 
@@ -279,8 +281,8 @@ W = np.random.randn(10, 3073) * 1e-8
 
 import random as rn
 
-learning_rate = 1e-9
-reg = 1e-2
+learning_rate = 1e-11
+reg = 1e2
 niter = 10000
 
 tot_loss = 0
