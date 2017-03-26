@@ -646,11 +646,12 @@ class Solver(object):
   model = TwoLayerNet(input_dim=3*32*32, hidden_dim=200, num_classes=10, weight_scale=std)
   
   solver = Solver(model, data,
-                  update_rule='sgd_momentum',
+                  update_rule='sgd',
                   lr_decay=0.95,
                   num_epochs=10, batch_size=100,
                   print_every=100)
   solver.train()
+
   
 # Implementing a network of arbitrary shape and depth
   
