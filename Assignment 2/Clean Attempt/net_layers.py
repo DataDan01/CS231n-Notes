@@ -80,7 +80,7 @@ def affine_backward(dout, cache):
 
 #
 # Making it leaky
-def relu_forward(x):
+def relu_forward(x, a = 0.1):
   """
   Computes the forward pass for a layer of rectified linear units (ReLUs).
 
@@ -94,14 +94,13 @@ def relu_forward(x):
 
   cache = x
   
-  out = np.maximum(0,x) 
+  out = np.maximum(a*x,x) 
   
   return out, cache
 
 #
-
 # Making it leaky
-def relu_backward(dout, cache):
+def relu_backward(dout, cache, a = 0.1):
   """
   Computes the backward pass for a layer of rectified linear units (ReLUs).
 
@@ -115,8 +114,11 @@ def relu_backward(dout, cache):
   x = cache
   
   dx = np.copy(dout)
+    
+  out = 1. * (x > 0)
+  out[out == 0] = a  
   
-  dx[x <= 0] = 0  
+  dx = out * dout  
   
   return dx
 

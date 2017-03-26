@@ -143,7 +143,7 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, beta1, beta2,
 # preds = forward(all_params, X_train[0:200,], y = None, pred = True)
 
 #@jit
-def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, beta1, beta2):
+def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, beta1, beta2, print_every = 100):
    
    # Initialize parameters if there are none
    if all_params == None:
@@ -172,12 +172,12 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
        all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
        
        # Displaying validation accuracy and progress at 100 batch intervals
-       if i % 100 == 0:
+       if i % print_every == 0:
            val_preds = forward(all_params, X_val, y = None, pred = True)
            
            acc = np.mean(val_preds == y_val)
            
-           print('Data loss {}, Val accuracy {}%, Iter {}%'.format(round(data_loss,4),round(acc*100,2),round(((i+100)/niter)*100,2)))
+           print('Data loss {}, Val accuracy {}%, Iter {}%'.format(round(data_loss,3),round(acc*100,2),round(((i+print_every)/niter)*print_every,2)))
            
    return all_params
 
@@ -185,4 +185,4 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
 
 all_params = None
   
-all_params = training(all_params = all_params, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 2, layer_width = 50, scale = 1e-4, batch_size = 32, niter = int(5e3), init_lr = 1e-5, beta1 = 0.95, beta2 = 0.999)
+all_params = training(all_params = all_params, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 1024, scale = 1e-3, batch_size = 64, niter = int(5e3), init_lr = 1e-4, beta1 = 0.95, beta2 = 0.999, print_every = 5)
