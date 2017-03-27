@@ -80,7 +80,7 @@ def forward(all_params, x, y, pred = False):
 
 # Backward pass
 #@jit
-def backward(all_params, dloss, cache, all_configs, learning_rate, beta1, beta2, epsilon):
+def backward(all_params, dloss, cache, all_configs, learning_rate, reg, beta1, beta2, epsilon):
     
     # Setup to save/initialize configurations and derivatives
     if all_configs == None:
@@ -113,6 +113,9 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, beta1, beta2,
         # Computing raw backprop gradient
         deriv['dx'],deriv['dw'],deriv['db'] = affine_relu_backward(deriv['dx'], cache[current_cache])
         
+        # Adding in L2 regularization
+        deriv['dw'] +=  reg*all_params[current_w]**2       
+        
         # Applying adam to weights and biases
         all_params[current_w],all_configs[current_w] = adam(all_params[current_w], deriv['dw'],all_configs[current_w])
         
@@ -143,7 +146,7 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, beta1, beta2,
 # preds = forward(all_params, X_train[0:200,], y = None, pred = True)
 
 #@jit
-def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, beta1, beta2, print_every = 100):
+def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, reg, beta1, beta2, print_every = 100):
    
    # Initialize parameters if there are none
    if all_params == None:
@@ -162,14 +165,18 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
        if i == 0:
            data_loss, dloss, cache = forward(all_params, X_mini, y_mini)          
            
-           all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = init_lr, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
+           all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = init_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
        # Subsequent passes    
        data_loss, dloss, cache = forward(all_params, X_mini, y_mini)
        
        # Decaying the learning rate linearly
        dec_lr = init_lr*(1-i/niter)
        
-       all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
+       try:
+           all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
+       # Ctrl + C to stop training but still update parameters
+       except KeyboardInterrupt:
+           return all_params
        
        # Displaying validation accuracy and progress at 100 batch intervals
        if i % print_every == 0:
@@ -177,7 +184,7 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
            
            acc = np.mean(val_preds == y_val)
            
-           print('Data loss {}, Val accuracy {}%, Iter {}%'.format(round(data_loss,3),round(acc*100,2),round(((i+print_every)/niter)*print_every,2)))
+           print('Data loss {:.3f}, Val accuracy {:.2f}%, Iter {:.2f}%'.format(data_loss,acc*100,(i+print_every)/niter*100))
            
    return all_params
 
@@ -185,4 +192,6 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
 
 all_params = None
   
-all_params = training(all_params = all_params, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 1024, scale = 1e-3, batch_size = 64, niter = int(5e3), init_lr = 1e-4, beta1 = 0.95, beta2 = 0.999, print_every = 5)
+all_params = training(all_params = all_params, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 2048, scale = 1e-3, batch_size = 256, niter = int(1e4), init_lr = 1e-4, reg = 1e-8, beta1 = 0.95, beta2 = 0.999, print_every = 10)
+
+# all_params = training(all_params = all_params, X = X_train[0:100,], y = y_train[0:100], X_val = X_val[0:100,], y_val = y_val[0:100], num_layers = 2, layer_width = 20, scale = 1e-3, batch_size = 2, niter = int(1e4), init_lr = 1e-3, reg = 0, beta1 = 0.95, beta2 = 0.999, print_every = 100)
