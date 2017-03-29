@@ -146,7 +146,7 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, reg, beta1, b
 # preds = forward(all_params, X_train[0:200,], y = None, pred = True)
 
 #@jit
-def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, reg, beta1, beta2, print_every = 100):
+def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, reg, beta1, beta2, print_every = 100):
    
    # Initialize parameters if there are none
    if all_params == None:
@@ -162,7 +162,7 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
        y_mini = y[rand_inx] 
            
        # First pass
-       if i == 0:
+       if i == 0 and all_configs == None:
            data_loss, dloss, cache = forward(all_params, X_mini, y_mini)          
            
            all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = init_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
@@ -176,7 +176,7 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
            all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
        # Ctrl + C to stop training but still update parameters
        except KeyboardInterrupt:
-           return all_params
+           return all_params, all_configs
        
        # Displaying validation accuracy and progress at 100 batch intervals
        if i % print_every == 0:
@@ -186,12 +186,13 @@ def training(all_params, X, y, X_val, y_val, num_layers, layer_width, scale, bat
            
            print('Data loss {:.3f}, Val accuracy {:.2f}%, Iter {:.2f}%'.format(data_loss,acc*100,(i+print_every)/niter*100))
            
-   return all_params
+   return all_params, all_configs
 
 ##
 
-all_params = None
+all_params,all_configs = None, None
   
-all_params = training(all_params = all_params, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 2048, scale = 1e-3, batch_size = 256, niter = int(1e4), init_lr = 1e-4, reg = 1e-8, beta1 = 0.95, beta2 = 0.999, print_every = 10)
+all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 100, layer_width = 256, scale = 3e-3, batch_size = 1024, niter = int(1e4), init_lr = 3e-3, reg = 1e-8, beta1 = 0.99, beta2 = 0.99, print_every = 10)
 
-# all_params = training(all_params = all_params, X = X_train[0:100,], y = y_train[0:100], X_val = X_val[0:100,], y_val = y_val[0:100], num_layers = 2, layer_width = 20, scale = 1e-3, batch_size = 2, niter = int(1e4), init_lr = 1e-3, reg = 0, beta1 = 0.95, beta2 = 0.999, print_every = 100)
+# Overfitting small subset to test out model
+# all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train[0:50,], y = y_train[0:50], X_val = X_train[0:50,], y_val = y_val[0:50], num_layers = 2, layer_width = 100, scale = 5e-3, batch_size = 10, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 5)
