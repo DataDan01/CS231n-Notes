@@ -5,13 +5,15 @@ Created on Sat Mar 25 13:54:30 2017
 @author: DA
 """
 
+from numba import jit
+
 import numpy as np
 
+@jit
 def adam(x, dx, config=None):
   """
   Uses the Adam update rule, which incorporates moving averages of both the
   gradient and its square and a bias correction term.
-
   config format:
   - learning_rate: Scalar learning rate.
   - beta1: Decay rate for moving average of first moment of gradient.
@@ -30,11 +32,6 @@ def adam(x, dx, config=None):
   config.setdefault('v', np.zeros_like(x))
   config.setdefault('t', 0)
 
-  #############################################################################
-  # Implement the Adam update formula, storing the next value of x in         #
-  # the next_x variable. Don't forget to update the m, v, and t variables     #
-  # stored in config.                                                         #
-  #############################################################################
   config['t'] += 1
   config['m'] = config['beta1']*config['m'] + (1-config['beta1'])*dx
   config['v'] = config['beta2']*config['v'] + (1-config['beta2'])*(dx**2)

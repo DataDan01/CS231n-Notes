@@ -5,11 +5,50 @@ Created on Sat Mar 25 12:26:34 2017
 @author: DA
 """
 
-import numpy as np
+%load_ext Cython
 
-def affine_forward(x, w, b):
-  """
+%%cython
+
+import numpy as np
+cimport numpy as np
+import cython
+
+def affine_forward_a(np.ndarray[np.float64_t, ndim = 4] x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.float64_t, ndim = 1] b):
+  
+  # Reshaping the input into a batch of examples as row vectors
+  cdef int N = x.shape[0]
+  cdef int D = x.size//N
+
+  cdef np.ndarray[np.float64_t, ndim = 2] x_flat = np.reshape(x, (N, D))
+  
+  # Computing dot product
+  cdef np.ndarray[np.float64_t, ndim = 2] out = np.dot(x_flat, w) + b
+
+  cache = x, w, b
+  
+  return out, cache
+
+def affine_forward_b(np.ndarray[np.float64_t, ndim = 2] x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.float64_t, ndim = 1] b):
+  
+  # Reshaping the input into a batch of examples as row vectors
+  cdef int N = x.shape[0]
+  cdef int D = x.size//N
+
+  cdef np.ndarray[np.float64_t, ndim = 2] x_flat = np.reshape(x, (N, D))
+  
+  # Computing dot product
+  cdef np.ndarray[np.float64_t, ndim = 2] out = np.dot(x_flat, w) + b
+
+  cache = x, w, b
+  
+  return out, cache
+
+def affine_forward(x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.float64_t, ndim = 1] b):
+    """
   Computes the forward pass for an affine (fully-connected) layer.
+  
+  This strings together two cases in cython because the dimension
+  of the np array cannot be dynamic.
 
   The input x has shape (N, d_1, ..., d_k) and contains a minibatch of N
   examples, where each example x[i] has shape (d_1, ..., d_k). We will
@@ -25,24 +64,72 @@ def affine_forward(x, w, b):
   - out: output, of shape (N, M)
   - cache: (x, w, b)
   """
+    if len(x.shape) == 4:
+        return affine_forward_a(x,w,b)
+    if len(x.shape) == 2:
+        return affine_forward_b(x,w,b)
   
-  # Reshaping the input into a batch of examples as row vectors
-  N = x.shape[0]
-  D = np.prod(x.shape[1:])  
-  
-  x_flat = np.reshape(x, (N, D))
-  
-  # Computing dot product
-  out = np.dot(x_flat, w) + b
+# affine_forward(X_train[0:10],np.random.randn(3072,100),np.random.randn(100))
+# affine_forward(np.random.randn(10,126),np.random.randn(126,100),np.random.randn(100))
 
-  cache = (x, w, b)
+#%%cython
+
+#import numpy as np
+#cimport numpy as np
+#import cython
   
-  return out, cache
+def affine_backward_a(np.ndarray[np.float64_t, ndim = 2] dout, tuple cache):
+
+  x, w, b = cache
   
-#  
+  # Saving down dimensionality and reshaping
+  cdef int N = x.shape[0]
+  cdef int D = x.size//N 
+ 
+  cdef np.ndarray[np.float64_t, ndim = 2] x_flat = np.reshape(x, (N, D))
   
-def affine_backward(dout, cache):
-  """
+  # Propogating derivative through skinny vector format and spreading out
+  #N*D  N*M     M*D
+  cdef np.ndarray[np.float64_t, ndim = 2] dx_s = dout.dot(w.T)
+  
+  # Accounting for derivatives to all intermediate layers
+  cdef np.ndarray[np.float64_t, ndim = 2] dx = np.reshape(dx_s, x.shape)  
+  
+  #D*M   D*N        N*M
+  cdef np.ndarray[np.float64_t, ndim = 2] dw = x_flat.T.dot(dout)
+  
+  #M*1  M*N           N*1
+  cdef np.ndarray[np.float64_t, ndim = 1] db = dout.T.dot(np.ones(N))
+
+  return dx, dw, db
+
+def affine_backward_b(np.ndarray[np.float64_t, ndim = 2] dout, tuple cache):
+
+  x, w, b = cache
+  
+  # Saving down dimensionality and reshaping
+  cdef int N = x.shape[0]
+  cdef int D = x.size//N 
+ 
+  cdef np.ndarray[np.float64_t, ndim = 2] x_flat = np.reshape(x, (N, D))
+  
+  # Propogating derivative through skinny vector format and spreading out
+  #N*D  N*M     M*D
+  cdef np.ndarray[np.float64_t, ndim = 2] dx_s = dout.dot(w.T)
+  
+  # Acconting for the case when we are have gotten to the input layer
+  cdef np.ndarray[np.float64_t, ndim = 4] dx = np.reshape(dx_s, x.shape)
+  
+  #D*M   D*N        N*M
+  cdef np.ndarray[np.float64_t, ndim = 2] dw = x_flat.T.dot(dout)
+  
+  #M*1  M*N           N*1
+  cdef np.ndarray[np.float64_t, ndim = 1] db = dout.T.dot(np.ones(N))
+
+  return dx, dw, db
+
+def affine_backward(dout, tuple cache):
+    """
   Computes the backward pass for an affine layer.
 
   Inputs:
@@ -56,31 +143,20 @@ def affine_backward(dout, cache):
   - dw: Gradient with respect to w, of shape (D, M)
   - db: Gradient with respect to b, of shape (M,)
   """
-  x, w, b = cache
-  
-  # Saving down dimensionality and reshaping
-  N = x.shape[0]
-  D = np.prod(x.shape[1:])    
- 
-  x_flat = np.reshape(x, (N, D))
-  
-  # Propogating derivative through skinny vector format and spreading out
-  #N*D  N*M     M*D
-  dx = dout.dot(w.T)
+    if cache[0].ndim == 2:
+        return affine_backward_a(dout, cache)
+    if cache[0].ndim == 4:
+        return affine_backward_b(dout, cache)
 
-  dx = np.reshape(dx, x.shape)
-  
-  #D*M   D*N        N*M
-  dw = x_flat.T.dot(dout)
-  
-  #M*1  M*N           N*1
-  db = dout.T.dot(np.ones(N))
+#%%cython
 
-  return dx, dw, db
+#import numpy as np
+#cimport numpy as np
+#import cython
 
 #
 # Making it leaky
-def relu_forward(x, a = 0.1):
+def relu_forward(np.ndarray[np.float64_t, ndim = 2] x, np.float64_t a = 0.1):
   """
   Computes the forward pass for a layer of rectified linear units (ReLUs).
 
@@ -92,15 +168,15 @@ def relu_forward(x, a = 0.1):
   - cache: x
   """
 
-  cache = x
+  cdef np.ndarray[np.float64_t, ndim = 2] cache = x
   
-  out = np.maximum(a*x,x) 
+  cdef np.ndarray[np.float64_t, ndim = 2] out = np.maximum(a*x,x) 
   
   return out, cache
 
 #
 # Making it leaky
-def relu_backward(dout, cache, a = 0.1):
+def relu_backward(np.ndarray[np.float64_t, ndim = 2] dout, np.ndarray[np.float64_t, ndim = 2] cache, np.float64_t a = 0.1):
   """
   Computes the backward pass for a layer of rectified linear units (ReLUs).
 
@@ -111,11 +187,11 @@ def relu_backward(dout, cache, a = 0.1):
   Returns:
   - dx: Gradient with respect to x
   """
-  x = cache
+  cdef np.ndarray[np.float64_t, ndim = 2] x = cache
   
-  dx = np.copy(dout)
+  cdef np.ndarray[np.float64_t, ndim = 2] dx = np.copy(dout)
     
-  out = 1. * (x > 0)
+  cdef np.ndarray[np.float64_t, ndim = 2] out = 1. * (x > 0)
   out[out == 0] = a  
   
   dx = out * dout  
@@ -124,7 +200,14 @@ def relu_backward(dout, cache, a = 0.1):
 
 #
 
-def affine_relu_forward(x, w, b):
+#%%cython
+
+#import numpy as np
+#cimport numpy as np
+#import cython
+#from __main__ import relu_forward,affine_forward,relu_backward,affine_backward
+
+def affine_relu_forward(x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.float64_t, ndim = 1] b):
   """
   Convenience layer that perorms an affine transform followed by a ReLU
 
@@ -143,7 +226,7 @@ def affine_relu_forward(x, w, b):
 
 #
 
-def affine_relu_backward(dout, cache):
+def affine_relu_backward(np.ndarray[np.float64_t, ndim = 2] dout, tuple cache):
   """
   Backward pass for the affine-relu convenience layer
   """
@@ -154,7 +237,7 @@ def affine_relu_backward(dout, cache):
   
 # 
 
-def softmax_loss(x, y):
+def softmax_loss(np.ndarray[np.float64_t, ndim = 2] x, y):
   """
   Computes the loss and gradient for softmax classification.
 
@@ -168,11 +251,15 @@ def softmax_loss(x, y):
   - loss: Scalar giving the loss
   - dx: Gradient of the loss with respect to x
   """
-  probs = np.exp(x - np.max(x, axis=1, keepdims=True))
+  cdef np.ndarray[np.float64_t, ndim = 2] probs = np.exp(x - np.max(x, axis=1, keepdims=True))
   probs /= np.sum(probs, axis=1, keepdims=True)
-  N = x.shape[0]
-  loss = -np.sum(np.log(probs[np.arange(N), y])) / N
-  dx = probs.copy()
-  dx[np.arange(N), y] -= 1
+  
+  cdef int N = x.shape[0]
+  
+  cdef np.float64_t loss = -np.sum(np.log(probs[np.arange(N), y]))/N
+  
+  cdef np.ndarray[np.float64_t, ndim = 2] dx = probs.copy()
+  dx[np.arange(N), y] -= 1.0
   dx /= N
+  
   return loss, dx

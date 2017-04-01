@@ -27,8 +27,8 @@ exec(open('./optim_algs.py').read())
 def initializer(input_dims, num_classes, num_layers, layer_width, scale):
     
     if scale == None:
-        scale = 1/np.sqrt(layer_width)
-    
+        scale = np.sqrt(2.0/layer_width)
+     
     # First layer
     all_params = {'W0': np.random.randn(input_dims, layer_width)*scale,
                   'b0': np.zeros(layer_width) }
@@ -36,11 +36,11 @@ def initializer(input_dims, num_classes, num_layers, layer_width, scale):
     # Middle Layers
     for l in range(num_layers-1):
         all_params['W'+str(l+1)] = np.random.randn(layer_width, layer_width)*scale
-        all_params['b'+str(l+1)] = np.zeros(layer_width)
+        all_params['b'+str(l+1)] = np.random.randn(layer_width)*scale/10.0
         
     # Final layer
     all_params['W'+str(num_layers)] = np.random.randn(layer_width, num_classes)*scale
-    all_params['b'+str(num_layers)] = np.zeros(num_classes)
+    all_params['b'+str(num_layers)] = np.random.randn(num_classes)*scale/10.0
         
     return all_params
                   
@@ -161,23 +161,15 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
        X_mini = X[rand_inx,]
        y_mini = y[rand_inx] 
            
-       # First pass
-       if i == 0 and all_configs == None:
-           data_loss, dloss, cache = forward(all_params, X_mini, y_mini)          
-           
-           all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = init_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
-       # Subsequent passes    
+       # Forward pass to get loss    
        data_loss, dloss, cache = forward(all_params, X_mini, y_mini)
        
        # Decaying the learning rate linearly
        dec_lr = init_lr*(1-i/niter)
        
-       try:
-           all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
-       # Ctrl + C to stop training but still update parameters
-       except KeyboardInterrupt:
-           return all_params, all_configs
-       
+       # Parameter update
+       globals()['all_params'], globals()['all_configs'] = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
+
        # Displaying validation accuracy and progress at 100 batch intervals
        if i % print_every == 0:
            val_preds = forward(all_params, X_val, y = None, pred = True)
@@ -185,14 +177,14 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
            acc = np.mean(val_preds == y_val)
            
            print('Data loss {:.3f}, Val accuracy {:.2f}%, Iter {:.2f}%'.format(data_loss,acc*100,(i+print_every)/niter*100))
-           
+                     
    return all_params, all_configs
 
 ##
 
 all_params,all_configs = None, None
   
-all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 100, layer_width = 256, scale = 3e-3, batch_size = 1024, niter = int(1e4), init_lr = 3e-3, reg = 1e-8, beta1 = 0.99, beta2 = 0.99, print_every = 10)
+all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 128, scale = None, batch_size = 256, niter = int(1e4), init_lr = 1e-4, reg = 1e-8, beta1 = 0.99, beta2 = 0.99, print_every = 1)
 
 # Overfitting small subset to test out model
-# all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train[0:50,], y = y_train[0:50], X_val = X_train[0:50,], y_val = y_val[0:50], num_layers = 2, layer_width = 100, scale = 5e-3, batch_size = 10, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 5)
+# all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train[0:50,], y = y_train[0:50], X_val = X_train[0:50,], y_val = y_val[0:50], num_layers = 5, layer_width = 100, scale = None, batch_size = 32, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 100)
