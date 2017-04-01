@@ -8,6 +8,7 @@ Created on Sat Mar 25 12:27:37 2017
 # os.chdir('./OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
 
 import numpy as np
+import re
 
 from numba import jit
 
@@ -27,56 +28,77 @@ exec(open('./optim_algs.py').read())
 def initializer(input_dims, num_classes, num_layers, layer_width, scale):
     
     if scale == None:
-        scale = np.sqrt(2.0/layer_width)
+        scale = np.sqrt(2.0/layer_width) # He initialization
      
     # First layer
     all_params = {'W0': np.random.randn(input_dims, layer_width)*scale,
-                  'b0': np.zeros(layer_width) }
+                  'b0': np.random.randn(layer_width)*scale/10.0,
+                  'a0': np.random.randn(layer_width)*scale/100.0,
+                  'num_layers': num_layers,
+                  'layer_width': layer_width}
+    
+    # Initialize middle layers    
+    all_params['W_mid'] = np.zeros((layer_width,layer_width,num_layers-1), dtype = np.float64)   
+    all_params['b_mid'] = np.zeros((layer_width,num_layers-1), dtype = np.float64)
+    all_params['a_mid'] = np.zeros((layer_width,num_layers-1), dtype = np.float64)
     
     # Middle Layers
     for l in range(num_layers-1):
-        all_params['W'+str(l+1)] = np.random.randn(layer_width, layer_width)*scale
-        all_params['b'+str(l+1)] = np.random.randn(layer_width)*scale/10.0
+        all_params['W_mid'][:,:,l] = np.random.randn(layer_width, layer_width)*scale
+        all_params['b_mid'][:,l] = np.random.randn(layer_width)*scale/10.0
+        all_params['a_mid'][:,l] = np.random.randn(layer_width)*scale/100.0
         
     # Final layer
     all_params['W'+str(num_layers)] = np.random.randn(layer_width, num_classes)*scale
     all_params['b'+str(num_layers)] = np.random.randn(num_classes)*scale/10.0
+    all_params['a'+str(num_layers)] = np.random.randn(num_classes)*scale/100.0
         
     return all_params
                   
-# all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 2, layer_width = 100, scale = 1e-6)
+# all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 12, layer_width = 100, scale = 1e-6)
 
 # Forward pass
 #@jit
 def forward(all_params, x, y, pred = False):
 
-    cache = {}
-
-    next_input = x
-
-    # First and all middle layers
-    for l in range(len(all_params)//2):
-        
-        str_inx = str(l)        
-        
-        current_cache = 'cache'+str_inx
-        current_weights = 'W'+str_inx       
-        current_biases = 'b'+str_inx
-        
-        next_input, cache[current_cache] = affine_relu_forward(next_input, all_params[current_weights], all_params[current_biases])
+    # Initializing all cache parameters for a single pass
+    last_layer = str(all_params['num_layers'])
     
-    final_output = next_input 
+    batch_size = x.shape[0]    
     
+    # We only need all of the intermediate layer outputs, we have everything else
+    cache = {'cache_mid_x': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
+             'cache'+last_layer+'_x': np.zeros_like(all_params['W'+last_layer])}
+
+    # Pass through all layers
+    for l in range(all_params['num_layers']-1):
+         
+        # Accounting for first layer
+        if l == 0:        
+            cache['cache0_x'] = affine_relu_forward(x, all_params['W0'], all_params['b0'], all_params['a0'])
+            continue
+    
+        # First Middle Layer
+        if l == 1:
+            cache['cache_mid_x'][:,:,l] = affine_relu_forward(cache['cache0_x'], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
+            continue
+    
+        # Middle layers
+        cache['cache_mid_x'][:,:,l] = affine_relu_forward(cache['cache_mid_x'][:,:,l-2], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
+        
+    # Final Layer
+    cache['cache'+last_layer+'_x'] = affine_relu_forward(cache['cache_mid_x'][:,:,int(last_layer)-2], all_params['W'+last_layer], all_params['b'+last_layer], all_params['a'+last_layer])
+        
     # Prediction time
     if pred == True:
         return np.argmax(final_output, 1)
     
     # Final layer, SoftMax loss
-    data_loss, dloss = softmax_loss(final_output, y)
+    data_loss, dloss = softmax_loss(cache['cache'+last_layer+'_x'], y)
     
     return data_loss, dloss, cache
 
-# data_loss, dloss, cache = forward(all_params, X_train[0:200,], y_train[0:200])
+# data_loss, dloss, cache = forward(all_params, x = X_train[0:17,], y = y_train[0:17])
 
 # Backward pass
 #@jit
