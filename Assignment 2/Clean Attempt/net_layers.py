@@ -34,11 +34,36 @@ def affine_relu_forward(x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.f
 
 #
 
-def affine_relu_backward(np.ndarray[np.float64_t, ndim = 2] dout, tuple cache):
+def affine_relu_backward(np.ndarray[np.float64_t, ndim = 2] dout, x, np.ndarray[np.float64_t, ndim = 2] w, np.ndarray[np.float64_t, ndim = 1] b, np.ndarray[np.float64_t, ndim = 1] a):
 
-  ## Need to implement
+  ### Affine Component ###
+  cdef int N = x.shape[0]
+  cdef int D = x.size//N   
 
-  return dx, dw, db
+                                            #N*D  N*M     M*D
+  cdef np.ndarray[np.float64_t, ndim = 2] dx_aff = dout.dot(w.T)
+  
+                                          #D*M   D*N        N*M
+  cdef np.ndarray[np.float64_t, ndim = 2] dw = x.T.dot(dout)
+  
+                                          #M*1  M*N           N*1
+  cdef np.ndarray[np.float64_t, ndim = 1] db = dout.T.dot(np.ones(N))
+  
+  ### Parametric ReLU Component ###  
+  cdef np.ndarray[np.float64_t, ndim = 2] da = x[x <= 0] ###???
+  
+  cdef np.ndarray[np.float64_t, ndim = 2] out = 1. * (x > 0)
+  
+  # Reshaping a and adding contents where we are below the kink
+  cdef np.ndarray[np.float64_t, ndim = 2] rep_a = np.array([a]*out.shape[1])
+  
+  out[out == 0] += rep_a[out == 0]  
+  
+  cdef np.ndarray[np.float64_t, ndim = 2] dx = out * dout ###  
+
+  return dx, dw, db, da
+  
+# affine_relu_backward(dout = dloss, x = cache['cache_mid_x'][:,:,3], w = all_params['W5'], b = all_params['b5'], a = all_params['a5'])  
   
 # 
 

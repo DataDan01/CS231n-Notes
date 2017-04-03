@@ -55,7 +55,7 @@ def initializer(input_dims, num_classes, num_layers, layer_width, scale):
         
     return all_params
                   
-# all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 12, layer_width = 100, scale = 1e-6)
+# all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 5, layer_width = 100, scale = 1e-6)
 
 # Forward pass
 #@jit
@@ -98,7 +98,7 @@ def forward(all_params, x, y, pred = False):
     
     return data_loss, dloss, cache
 
-# data_loss, dloss, cache = forward(all_params, x = X_train[0:17,], y = y_train[0:17])
+# data_loss, dloss, cache = forward(all_params, x = X_train[0:30,], y = y_train[0:30])
 
 # Backward pass
 #@jit
