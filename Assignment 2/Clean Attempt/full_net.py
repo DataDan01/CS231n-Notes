@@ -8,7 +8,6 @@ Created on Sat Mar 25 12:27:37 2017
 # os.chdir('./OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
 
 import numpy as np
-import re
 
 from numba import jit
 
@@ -58,7 +57,8 @@ def initializer(input_dims, num_classes, num_layers, layer_width, scale):
 # all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 5, layer_width = 100, scale = 1e-6)
 
 # Forward pass
-#@jit
+# x = X_train[0:32]
+# y = y_train[0:32]
 def forward(all_params, x, y, pred = False):
 
     # Initializing all cache parameters for a single pass
@@ -67,38 +67,38 @@ def forward(all_params, x, y, pred = False):
     batch_size = x.shape[0]    
     
     # We only need all of the intermediate layer outputs, we have everything else
-    cache = {'cache_mid_x': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
-             'cache'+last_layer+'_x': np.zeros_like(all_params['W'+last_layer])}
+    cache = {'cache_mid_rel': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
+             'cache'+last_layer+'_rel': np.zeros_like(all_params['W'+last_layer]),
+             'cache_mid_aff': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
+             'cache'+last_layer+'_aff': np.zeros_like(all_params['W'+last_layer])
+}
+
+
+    # Accounting for first layer      
+    cache['cache0_rel'],cache['cache0_aff'] = affine_relu_forward(x, all_params['W0'], all_params['b0'], all_params['a0'])
+
+    # First Middle Layer
+    cache['cache_mid_rel'][:,:,1],cache['cache_mid_aff'][:,:,1] = affine_relu_forward(cache['cache0_rel'], all_params['W_mid'][:,:,1], all_params['b_mid'][:,1], all_params['a_mid'][:,1])
 
     # Pass through all layers
-    for l in range(all_params['num_layers']-1):
-         
-        # Accounting for first layer
-        if l == 0:        
-            cache['cache0_x'] = affine_relu_forward(x, all_params['W0'], all_params['b0'], all_params['a0'])
-            continue
-    
-        # First Middle Layer
-        if l == 1:
-            cache['cache_mid_x'][:,:,l] = affine_relu_forward(cache['cache0_x'], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
-            continue
+    for l in range(2,all_params['num_layers']-1):
     
         # Middle layers
-        cache['cache_mid_x'][:,:,l] = affine_relu_forward(cache['cache_mid_x'][:,:,l-2], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
+        cache['cache_mid_rel'][:,:,l],cache['cache_mid_aff'][:,:,l] = affine_relu_forward(cache['cache_mid_rel'][:,:,l-2], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
         
     # Final Layer
-    cache['cache'+last_layer+'_x'] = affine_relu_forward(cache['cache_mid_x'][:,:,int(last_layer)-2], all_params['W'+last_layer], all_params['b'+last_layer], all_params['a'+last_layer])
+    cache['cache'+last_layer+'_rel'],cache['cache'+last_layer+'_aff'] = affine_relu_forward(cache['cache_mid_aff'][:,:,int(last_layer)-2], all_params['W'+last_layer], all_params['b'+last_layer], all_params['a'+last_layer])
         
     # Prediction time
     if pred == True:
         return np.argmax(final_output, 1)
     
     # Final layer, SoftMax loss
-    data_loss, dloss = softmax_loss(cache['cache'+last_layer+'_x'], y)
+    data_loss, dloss = softmax_loss(cache['cache'+last_layer+'_rel'], y)
     
     return data_loss, dloss, cache
 
-# data_loss, dloss, cache = forward(all_params, x = X_train[0:30,], y = y_train[0:30])
+# data_loss, dloss, cache = forward(all_params, x = X_train[0:32,], y = y_train[0:32])
 
 # Backward pass
 #@jit
