@@ -37,4 +37,16 @@ mask = range(num_test)
 X_test = X_test[mask]
 y_test = y_test[mask]
 
-del mask, num_test, num_training, num_validation
+# Preprocessing: reshape the image data into rows
+X_train = np.reshape(X_train, (X_train.shape[0], -1))
+X_val = np.reshape(X_val, (X_val.shape[0], -1))
+X_test = np.reshape(X_test, (X_test.shape[0], -1))
+
+# Centering data
+mean_image = np.mean(X_train, axis = 0)
+
+X_train -= mean_image
+X_val -= mean_image
+X_test -= mean_image
+
+del mask, num_test, num_training, num_validation, mean_image

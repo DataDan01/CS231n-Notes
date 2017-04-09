@@ -4,8 +4,8 @@ Created on Sat Mar 25 12:27:37 2017
 
 @author: DA
 """
-# import os
-# os.chdir('./OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
+import os
+os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
 
 import numpy as np
 
@@ -23,35 +23,30 @@ exec(open('./optim_algs.py').read())
 ########################################
 
 # Initializing weights
-#@jit
+@jit
 def initializer(input_dims, num_classes, num_layers, layer_width, scale):
     
     if scale == None:
         scale = np.sqrt(2.0/layer_width) # He initialization
      
-    # First layer
+    # Initialization
     all_params = {'W0': np.random.randn(input_dims, layer_width)*scale,
                   'b0': np.random.randn(layer_width)*scale/10.0,
-                  'a0': np.random.randn(layer_width)*scale/100.0,
+                  'a0': np.random.randn(layer_width)*scale/20.0 + 2/20,
                   'num_layers': num_layers,
                   'layer_width': layer_width}
     
-    # Initialize middle layers    
-    all_params['W_mid'] = np.zeros((layer_width,layer_width,num_layers-1), dtype = np.float64)   
-    all_params['b_mid'] = np.zeros((layer_width,num_layers-1), dtype = np.float64)
-    all_params['a_mid'] = np.zeros((layer_width,num_layers-1), dtype = np.float64)
-    
-    # Middle Layers
-    for l in range(num_layers-1):
-        all_params['W_mid'][:,:,l] = np.random.randn(layer_width, layer_width)*scale
-        all_params['b_mid'][:,l] = np.random.randn(layer_width)*scale/10.0
-        all_params['a_mid'][:,l] = np.random.randn(layer_width)*scale/100.0
-        
+    # Middle layers    
+    for l in range(1,num_layers-1):
+        all_params['W'+str(l)] = np.random.randn(layer_width, layer_width)*scale
+        all_params['b'+str(l)] = np.random.randn(layer_width)*scale/10.0
+        all_params['a'+str(l)] = np.random.randn(layer_width)*scale/20.0 + 2/20
+                   
     # Final layer
-    all_params['W'+str(num_layers)] = np.random.randn(layer_width, num_classes)*scale
-    all_params['b'+str(num_layers)] = np.random.randn(num_classes)*scale/10.0
-    all_params['a'+str(num_layers)] = np.random.randn(num_classes)*scale/100.0
-        
+    all_params['W'+str(num_layers-1)] = np.random.randn(layer_width, num_classes)*scale
+    all_params['b'+str(num_layers-1)] = np.random.randn(num_classes)*scale/10.0
+    all_params['a'+str(num_layers-1)] = np.random.randn(num_classes)*scale/20.0 + 2/20           
+               
     return all_params
                   
 # all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 5, layer_width = 100, scale = 1e-6)
@@ -60,48 +55,33 @@ def initializer(input_dims, num_classes, num_layers, layer_width, scale):
 # x = X_train[0:32]
 # y = y_train[0:32]
 def forward(all_params, x, y, pred = False):
-
-    # Initializing all cache parameters for a single pass
-    last_layer = str(all_params['num_layers'])
     
-    batch_size = x.shape[0]    
+    # Initializing, rel-1 is actually just the input layer
+    cache = {'rel-1': x}
     
-    # We only need all of the intermediate layer outputs, we have everything else
-    cache = {'cache_mid_rel': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
-             'cache'+last_layer+'_rel': np.zeros_like(all_params['W'+last_layer]),
-             'cache_mid_aff': np.zeros((batch_size,all_params['W_mid'].shape[1],all_params['W_mid'].shape[2])),
-             'cache'+last_layer+'_aff': np.zeros_like(all_params['W'+last_layer])
-}
-
-
-    # Accounting for first layer      
-    cache['cache0_rel'],cache['cache0_aff'] = affine_relu_forward(x, all_params['W0'], all_params['b0'], all_params['a0'])
-
-    # First Middle Layer
-    cache['cache_mid_rel'][:,:,1],cache['cache_mid_aff'][:,:,1] = affine_relu_forward(cache['cache0_rel'], all_params['W_mid'][:,:,1], all_params['b_mid'][:,1], all_params['a_mid'][:,1])
-
+    # First layer, looking at input explicitly
+    cache['rel0'],cache['aff0'] = affine_relu_forward(x, all_params['W0'], all_params['b0'], all_params['a0'])
+    
     # Pass through all layers
-    for l in range(2,all_params['num_layers']-1):
+    for l in range(1,all_params['num_layers']):
     
-        # Middle layers
-        cache['cache_mid_rel'][:,:,l],cache['cache_mid_aff'][:,:,l] = affine_relu_forward(cache['cache_mid_rel'][:,:,l-2], all_params['W_mid'][:,:,l], all_params['b_mid'][:,l], all_params['a_mid'][:,l])
-        
-    # Final Layer
-    cache['cache'+last_layer+'_rel'],cache['cache'+last_layer+'_aff'] = affine_relu_forward(cache['cache_mid_aff'][:,:,int(last_layer)-2], all_params['W'+last_layer], all_params['b'+last_layer], all_params['a'+last_layer])
+        layer = str(l)
+        prev_lay = str(l-1)
+
+        cache['rel'+layer],cache['aff'+layer] = affine_relu_forward(cache['rel'+prev_lay], all_params['W'+layer], all_params['b'+layer], all_params['a'+layer])
         
     # Prediction time
     if pred == True:
-        return np.argmax(final_output, 1)
+        return np.argmax(cache['rel'+layer], 1)
     
     # Final layer, SoftMax loss
-    data_loss, dloss = softmax_loss(cache['cache'+last_layer+'_rel'], y)
+    data_loss, dloss = softmax_loss(cache['rel'+layer], y)
     
     return data_loss, dloss, cache
 
 # data_loss, dloss, cache = forward(all_params, x = X_train[0:32,], y = y_train[0:32])
 
 # Backward pass
-#@jit
 def backward(all_params, dloss, cache, all_configs, learning_rate, reg, beta1, beta2, epsilon):
     
     # Setup to save/initialize configurations and derivatives
@@ -111,6 +91,9 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, reg, beta1, b
         
         for key in all_params:        
         
+            if key in ['num_layers','layer_width']:
+                continue
+            
             all_configs[key] = {
                     'learning_rate': learning_rate,
                     'beta1': beta1,
@@ -118,63 +101,57 @@ def backward(all_params, dloss, cache, all_configs, learning_rate, reg, beta1, b
                     'epsilon': epsilon,
                     'm': np.zeros_like(all_params[key]),
                     'v': np.zeros_like(all_params[key]),
-                    't': 0 }        
+                    't': 0 }       
             
     deriv = {'dx': dloss}    
         
-    for i in range(len(all_params)//2-1, -1, -1):
+    # Middle layers
+    for i in range(all_params['num_layers']-1, -1, -1):
+                
+        layer = str(i)
+        prev_lay = str(i-1)
         
-        # Setting up references for indexing dicts
-        str_inx = str(i)        
-        
-        current_w = 'W'+str_inx
-        current_b = 'b'+str_inx
-        current_cache = 'cache'+str_inx
-        last_cache = 'cache'+str(int(str_inx)+1)
-        
-        # Computing raw backprop gradient
-        deriv['dx'],deriv['dw'],deriv['db'] = affine_relu_backward(deriv['dx'], cache[current_cache])
+        deriv['dx'],deriv['dw'],deriv['db'],deriv['da'] = affine_relu_backward(dout = deriv['dx'], aff_out = cache['aff'+layer], a = all_params['a'+layer], x = cache['rel'+prev_lay], w = all_params['W'+layer], b = all_params['b'+layer])
         
         # Adding in L2 regularization
-        deriv['dw'] +=  reg*all_params[current_w]**2       
+        deriv['dw'] +=  reg*all_params['W'+layer]**2   
         
-        # Applying adam to weights and biases
-        all_params[current_w],all_configs[current_w] = adam(all_params[current_w], deriv['dw'],all_configs[current_w])
+        # Updating all parameters and freeing up memory
+        cache['aff'+layer] = 0
+        cache['rel'+prev_lay] = 0
         
-        all_params[current_b],all_configs[current_b] = adam(all_params[current_b], deriv['db'],all_configs[current_b])
-        
-        # Clearing up some memory
-        if i == len(all_params)//2:
-            continue
-        cache[last_cache] = 0
-        
-        if i == 0:
-            cache['cache0'] = 0
-        
+        # Updaing w
+        all_params['W'+layer],all_configs['W'+layer] = adam(all_params['W'+layer], deriv['dw'],all_configs['W'+layer])
+        deriv['dw'] = 0
+             
+        # Updating b
+        all_params['b'+layer],all_configs['b'+layer] = adam(all_params['b'+layer], deriv['db'],all_configs['b'+layer])
+        deriv['db'] = 0
+             
+        # Updaing a
+        all_params['a'+layer],all_configs['a'+layer] = adam(all_params['a'+layer], deriv['da'],all_configs['a'+layer])
+        deriv['da'] = 0
+                
     return all_params, all_configs
 
-# Init
-# all_params = initializer(input_dims = np.prod(X_train.shape[1:]), num_classes = 10, num_layers = 2, layer_width = 100, scale = 1e-3)
-
-# First Passes
-# data_loss, dloss, cache = forward(all_params, X_train[0:200,], y_train[0:200])    
-# all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = 1e-4, beta1 = 0.95, beta2 = 0.999, epsilon = 1e-8)
-
-# Subsequent Passes
-# data_loss, dloss, cache = forward(all_params, X_train[0:200,], y_train[0:200])    
-# all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = 1e-4, beta1 = 0.95, beta2 = 0.999, epsilon = 1e-8)
+# all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = 1e-4, reg = 1e-4, beta1 = 0.95, beta2 = 0.999, epsilon = 1e-8)
+  
+# all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = 1e-4, reg = 1e-4,beta1 = 0.95, beta2 = 0.999, epsilon = 1e-8)
 
 # Prediction 
 # preds = forward(all_params, X_train[0:200,], y = None, pred = True)
 
-#@jit
-def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, reg, beta1, beta2, print_every = 100):
+#
+def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, scale, batch_size, niter, init_lr, reg, beta1, beta2, print_every = 100, check_every = 100, break_when = 10):
    
    # Initialize parameters if there are none
    if all_params == None:
        all_params = initializer(input_dims = np.prod(X.shape[1:]), num_classes = len(np.unique(y)), num_layers = num_layers, layer_width = layer_width, scale = scale)
 
-   # Subsequent passes
+   # Initializing accumulation variable for early stopping
+   break_counter = 0
+
+   # Forward and backward passes through all layers
    for i in range(niter):
        
        # Batch setup
@@ -191,22 +168,82 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
        
        # Parameter update
        globals()['all_params'], globals()['all_configs'] = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = dec_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8)
-
-       # Displaying validation accuracy and progress at 100 batch intervals
+       
+       # Displaying validation accuracy and progress at batch intervals
        if i % print_every == 0:
            val_preds = forward(all_params, X_val, y = None, pred = True)
            
            acc = np.mean(val_preds == y_val)
            
-           print('Data loss {:.3f}, Val accuracy {:.2f}%, Iter {:.2f}%'.format(data_loss,acc*100,(i+print_every)/niter*100))
-                     
-   return all_params, all_configs
+           print('Data loss {:.3f}, Val acc {:.2f}%, Iter {:.2f}%, Break {}/{}'.format(data_loss,acc*100,(i+print_every)/niter*100,break_counter,break_when))
+       
+       # Keep track of how well the model is learning       
+       if i % check_every == 0 and i > 1:
+           # Update best accuracy when record is beat, write data and reset break counter
+           if acc > globals()['best_acc']:
+               globals()['best_acc'] = acc
+               break_counter = 1       
+               for key in all_params:
+                   np.save(file = 'D:/Py_Data/'+str(key), arr = all_params[key])
+           # Keep track of weak improvement
+           if acc < globals()['best_acc']:
+               break_counter += 1
+               # Break training when improvement is too slow 
+               if break_counter == break_when:
+                   print('Stopping early')
+                   break   
+   return None
 
 ##
 
-all_params,all_configs = None, None
+#all_params,all_configs,best_acc = None, None, 0
   
-all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 5, layer_width = 128, scale = None, batch_size = 256, niter = int(1e4), init_lr = 1e-4, reg = 1e-8, beta1 = 0.99, beta2 = 0.99, print_every = 1)
+#training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 20, layer_width = 1024, scale = None, batch_size = 128, niter = int(1e4), init_lr = 1e-4, reg = 1e-4, beta1 = 0.99, beta2 = 0.99, print_every = 5, check_every = 5, break_when = 20)
 
 # Overfitting small subset to test out model
-# all_params,all_configs = training(all_params = all_params, all_configs = all_configs, X = X_train[0:50,], y = y_train[0:50], X_val = X_train[0:50,], y_val = y_val[0:50], num_layers = 5, layer_width = 100, scale = None, batch_size = 32, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 100)
+# training(all_params = all_params, all_configs = all_configs, X = X_train[0:10,], y = y_train[0:10], X_val = X_train[0:10,], y_val = y_train[0:10], num_layers = 10, layer_width = 100, scale = None, batch_size = 10, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 100, check_every =  100)
+
+import re
+import os
+
+best_acc = 0
+
+for i in range(10000):
+    
+    all_params,all_configs = {}, None
+    
+    # Reading in parameters
+    for file in os.listdir('D:/Py_Data/'):
+        all_params[re.sub('.npy','',file)] = np.load('D:/Py_Data/'+file)
+    
+    # If the data directory is empty, create new parameters from scratch
+    if len(all_params.keys()) == 0:
+        all_params = None
+    
+    print('Reloaded data, starting training')
+    
+    training(all_params = all_params, 
+             all_configs = all_configs, 
+             X = X_train, 
+             y = y_train, 
+             X_val = X_val, 
+             y_val = y_val, 
+             num_layers = 12, 
+             layer_width = 4096, 
+             scale = None, 
+             batch_size = 128, 
+             niter = int(1e4), 
+             init_lr = np.random.uniform(1e-4,1e-8), 
+             reg = np.random.uniform(1e-4,1e-8), 
+             beta1 = np.random.uniform(0.5,1-1e-4), 
+             beta2 = np.random.uniform(0.5,1-1e-4), 
+             print_every = 5, 
+             check_every = 5, 
+             break_when = 25)
+    # Savind down file of best accuracy
+    try:
+        np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/'+str(round(globals()['best_acc']*100,2))+'_acc', arr = np.array([0]))
+    except:
+        continue
+        
+    
