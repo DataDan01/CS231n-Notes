@@ -191,7 +191,7 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
            if acc <= globals()['best_acc']:
                break_counter += 1
                # Break training when improvement is too slow or when current accuracy is too far away
-               if break_counter == break_when or acc+0.10 <= globals()['best_acc']:
+               if break_counter == break_when or acc+0.05 <= globals()['best_acc']:
                    print('Stopping early')
                    break   
    return None
@@ -212,7 +212,8 @@ best_acc = 0
 
 for i in range(10000):
     
-    all_params,all_configs = {}, None
+    # Read parameters in if they are saved on disk
+    all_params,all_configs = {},None
     
     # Reading in parameters
     for file in os.listdir('D:/Py_Data/'):
@@ -230,18 +231,18 @@ for i in range(10000):
              y = y_train, 
              X_val = X_val, 
              y_val = y_val, 
-             num_layers = 16, 
-             layer_width = 4096, 
+             num_layers = 8, 
+             layer_width = 512, 
              scale = None, 
-             batch_size = 256, 
+             batch_size = 1024, 
              niter = int(1e4), 
-             init_lr = np.random.uniform(1e-4,1e-8), 
-             reg = np.random.uniform(1e-4,1e-8), 
+             init_lr = np.random.uniform(1e-3,1e-8), 
+             reg = np.random.uniform(1e-1,1e-8), 
              beta1 = np.random.uniform(0.5,1-1e-4), 
-             beta2 = np.random.uniform(0.5,1-1e-4), 
+             beta2 = np.random.uniform(0.95,1-1e-4), 
              print_every = 1, 
              check_every = 1, 
-             break_when = 25)
+             break_when = 50)
 
 # Finding out total size
 size = 0
