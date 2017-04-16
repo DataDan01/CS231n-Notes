@@ -15,8 +15,8 @@ import os
 X_train, y_train, X_test, y_test = load_CIFAR10(str(Path(os.getcwd()).parents[1])+'/data/cifar-10-batches-py')
 
 # Subsample the data for more efficient code execution in this exercise.
-num_training = 49000
-num_validation = 1000
+num_training = 47000
+num_validation = 2000
 num_test = 1000
 
 # Our validation set will be num_validation points from the original
