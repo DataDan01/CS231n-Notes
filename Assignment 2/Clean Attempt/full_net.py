@@ -9,7 +9,7 @@ os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attemp
 
 import numpy as np
 from numba import jit
-import datetime as dt
+import re
 
 # Getting the data
 exec(open('./data_load.py').read())
@@ -115,13 +115,13 @@ def forward(all_params, x, y, pred = False):
         
         # BatchNorm after nonlinearity
         cache['bn'+layer],cache['xhat'+layer],cache['xmu'+layer],cache['var'+layer] = batchnorm_forward(cache['rel'+layer], all_params['gamma'+layer], all_params['beta'+layer])
-        
-    # Prediction time
-    if pred == True:
-        return np.argmax(cache['bn'+layer], 1)
-    
+            
     # Final layer, SoftMax loss
     data_loss, dloss = softmax_loss(cache['bn'+layer], y)
+    
+    # Prediction time, return value and log loss
+    if pred == True:
+        return data_loss, np.argmax(cache['bn'+layer], axis = 1)
     
     return data_loss, dloss, cache
 
@@ -203,7 +203,7 @@ def backward(all_params, dloss, cache, all_configs, learning_rate = 1e-4, reg = 
 # preds = forward(all_params, X_train[0:200,], y = None, pred = True)
 
 #
-def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, layer_sd_perc = 0.05, mean1 = 1, mean2 = 0.3, sd1 = 0.25, sd2 = 0.5, batch_size = 32, niter = 10000, init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.99, print_every = 100, check_every = 100, break_when = 10, break_perc = 0.05, lin_upd_prob = 0.99, rel_upd_prob = 0.10):
+def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, layer_sd_perc = 0.05, mean1 = 1, mean2 = 0.3, sd1 = 0.25, sd2 = 0.5, batch_size = 32, niter = 10000, init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.99, print_every = 100, check_every = 100, break_when = 10, break_perc = 0.10, lin_upd_prob = 0.99, rel_upd_prob = 0.10):
    
    # Initialize parameters if there are none
    if all_params == None:
@@ -223,36 +223,35 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
            
        # Forward pass to get loss    
        data_loss, dloss, cache = forward(all_params, X_mini, y_mini)
-       
        # Parameter update
        globals()['all_params'], globals()['all_configs'] = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = init_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8, lin_upd_prob = lin_upd_prob, rel_upd_prob = rel_upd_prob)
        
        # Displaying validation accuracy and progress at batch intervals
        if i % print_every == 0:
-           val_preds = forward(all_params, X_val, y = None, pred = True)
+           val_loss, val_preds = forward(all_params, X_val, y = y_val, pred = True)
            
            acc = np.mean(val_preds == y_val)
            
-           print('Data loss {:.3f}, Val acc {:.2f}%, Iter {:.2f}%, Break {}/{}'.format(data_loss,acc*100,(i+print_every)/niter*100,break_counter,break_when))
+           print('Data loss {:.4f}, Val acc {:.2f}%, Val loss {:.4f}, Break {}/{}'.format(data_loss,acc*100,val_loss,break_counter,break_when))
        
        # Keep track of how well the model is learning       
        if i % check_every == 0 and i > 1:
-           # Update best accuracy when record is beat, write data and reset break counter
-           if acc > globals()['best_acc']:
-               globals()['best_acc'] = acc
-               break_counter = 0       
+           # Update best loss when record is beat, write data and reset break counter
+           if val_loss < globals()['best_vloss']:
+               globals()['best_vloss'] = val_loss
+               break_counter = 1       
                for key in all_params:
                    np.save(file = 'D:/Py_Data/'+str(key), arr = all_params[key])
-               # Saving down best accuracy and time
-               np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/'+str(round(globals()['best_acc']*100,2))+'_acc', arr = np.array([0]))
-               globals()['best_time'] = dt.datetime.now()
+               # Saving down best accuracy and val loss
+               np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/'+str(round(acc*100,2))+'acc_'+str(round(val_loss,4))+'vloss', arr = np.array([0]))
+               continue           
            # Keep track of weak improvement
-           if acc <= globals()['best_acc']:
+           if val_loss >= globals()['best_vloss']:
                break_counter += 1
-               # Break training when improvement is too slow or when current accuracy is too far away
-               if break_counter == break_when or acc+break_perc <= globals()['best_acc']:
-                   print('Stopping early')
-                   break   
+           # Break training when improvement is too slow or when current val loss is too far away from the best
+           if break_counter == break_when or val_loss > globals()['best_vloss']*(1+break_perc):
+               print('Stopping early, not much improvement')
+               break   
    return None
 
 ##
@@ -267,10 +266,10 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
 # Element wise injection of noise, not too big
 small_noise = np.vectorize(lambda x: np.random.normal(0,abs(x)/50) + x)
 
-best_acc, best_time = 0, dt.datetime.now()
+best_vloss = -np.log(1./len(np.unique(y_val)))*1.5
 
 # First learing rate and exponential decay of rate
-glob_lr = 1e-3
+glob_lr = 1e-4
 dec_rate = 0.8
 
 for i in range(10000):
@@ -300,9 +299,9 @@ for i in range(10000):
              layer_width = 4096,
              layer_sd_perc = 0.05, 
              mean1 = 1, 
-             mean2 = 0.1, 
-             sd1 = 0.2, 
-             sd2 = 0.2, 
+             mean2 = 0.05, 
+             sd1 = 0.1, 
+             sd2 = 0.01, 
              batch_size = 256+2*i, 
              niter = int(1e4), 
              init_lr = glob_lr, 
@@ -312,21 +311,20 @@ for i in range(10000):
              print_every = 1, 
              check_every = 1, 
              break_when = 50, 
-             break_perc = 0.015,
+             break_perc = 0.02,
              lin_upd_prob = 0.99, 
-             rel_upd_prob = 0.10)
+             rel_upd_prob = 0.01)
 
     # Decaying the learning rate after break or completion of training round
     glob_lr *= dec_rate 
-
-    # Figuring out when the last update was and adding noise if it was a while ago
-    if dt.datetime.now() > best_time + dt.timedelta(minutes=30):
-        print('Adding noise to parameters, resetting best accuracy')
-        # Resetting best accuracy
-        best_acc = 0
-        np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/RESET', arr = np.array([0]))
+    # Adding noise if last update was a while ago
+    if i % 10 == 0 and i > 0:
+        print('Adding noise to parameters, resetting best loss')
+        # Resetting best loss
+        best_vloss = -np.log(1./len(np.unique(y_val)))*1.5
+        np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/RESET'+str(i), arr = np.array([0]))
         # Increasing learning rate a bit to move out of lower accuracy faster
-        glob_lr *= 1/(dec_rate**8)
+        glob_lr *= 1/(dec_rate**9)
         # Injecting noise into all parameters
         for key in all_params:
             if key == 'num_layers':
@@ -342,3 +340,5 @@ for key in all_params:
         size += all_params[key].size
     
 print ('{:,} parameters totaling {:,.0f} MB'.format(size,size*64/(8*10**6))) 
+
+# 234,871,758 parameters totaling 1,879 MB
