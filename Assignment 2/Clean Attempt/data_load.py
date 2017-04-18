@@ -14,30 +14,27 @@ import os
 
 X_train, y_train, X_test, y_test = load_CIFAR10(str(Path(os.getcwd()).parents[1])+'/data/cifar-10-batches-py')
 
-# Subsample the data for more efficient code execution in this exercise.
+# Subsample the data
 num_training = 47000
 num_validation = 2000
 num_test = 1000
 
-# Our validation set will be num_validation points from the original
-# training set.
+# Generating validation set
 mask = range(num_training, num_training + num_validation)
 X_val = X_train[mask]
 y_val = y_train[mask]
 
-# Our training set will be the first num_train points from the original
-# training set.
+# Generating training set
 mask = range(num_training)
 X_train = X_train[mask]
 y_train = y_train[mask]
 
-# We use the first num_test points of the original test set as our
-# test set.
+# Generating test set
 mask = range(num_test)
 X_test = X_test[mask]
 y_test = y_test[mask]
 
-# Preprocessing: reshape the image data into rows
+# Reshape the image data from 3D matrices into vectors
 X_train = np.reshape(X_train, (X_train.shape[0], -1))
 X_val = np.reshape(X_val, (X_val.shape[0], -1))
 X_test = np.reshape(X_test, (X_test.shape[0], -1))
@@ -49,4 +46,5 @@ X_train -= mean_image
 X_val -= mean_image
 X_test -= mean_image
 
+# Clean up
 del mask, num_test, num_training, num_validation, mean_image

@@ -5,16 +5,16 @@ Created on Sat Mar 25 12:27:37 2017
 @author: DA
 """
 import os
-os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
-
 import numpy as np
 from numba import jit
 import re
 
+os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
+
 # Getting the data
 exec(open('./data_load.py').read())
 
-# Getting layers and optimization algo
+# Getting layers and optimization functions
 exec(open('./net_layers.py').read())
 exec(open('./optim_algs.py').read())
 
@@ -22,7 +22,7 @@ exec(open('./optim_algs.py').read())
 # Setting up a simple net architecture #
 ########################################
 
-# Bimodal distribution function
+# Bimodal distribution function, used for initializing parameters
 def bimodal(size, mean1 = 1, mean2 = 0.1, sd1 = 0.3, sd2 = 0.1):
     
     def twofer(nothing):
@@ -43,8 +43,7 @@ def bimodal(size, mean1 = 1, mean2 = 0.1, sd1 = 0.3, sd2 = 0.1):
 @jit
 def initializer(input_dims = 3072, num_classes = 10, num_layers = 4, layer_width = 128, layer_sd_perc = 0.05, mean1 = 1, mean2 = 0.3, sd1 = 0.25, sd2 = 0.5):
     
-    # He initialization, scale for weights and biases
-    # Adjusted for the parametric ReLU component
+    # He. initialization, scale for weights and biases
     scale = np.sqrt((2.0)/layer_width) 
      
     # First layer
@@ -95,6 +94,7 @@ def initializer(input_dims = 3072, num_classes = 10, num_layers = 4, layer_width
 def forward(all_params, x, y, pred = False):
     
     # Initializing, rel-1 is actually just the input layer
+    # Used for backward pass later
     cache = {'rel-1': x}
     
     # First layer, looking at input explicitly
@@ -119,7 +119,7 @@ def forward(all_params, x, y, pred = False):
     # Final layer, SoftMax loss
     data_loss, dloss = softmax_loss(cache['bn'+layer], y)
     
-    # Prediction time, return value and log loss
+    # Prediction time, log loss and actual predictions
     if pred == True:
         return data_loss, np.argmax(cache['bn'+layer], axis = 1)
     
@@ -137,9 +137,9 @@ def backward(all_params, dloss, cache, all_configs, learning_rate = 1e-4, reg = 
         
         for key in all_params:        
         
-            if key in ['num_layers','layer_width']:
+            if key == 'num_layers':
                 continue
-            
+            # Parameters for Adam gradient descent
             all_configs[key] = {
                     'learning_rate': learning_rate,
                     'beta1': beta1,
@@ -199,8 +199,8 @@ def backward(all_params, dloss, cache, all_configs, learning_rate = 1e-4, reg = 
 
 # all_params, all_configs = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = None, learning_rate = 1e-4, reg = 1e-4, beta1 = 0.95, beta2 = 0.999, epsilon = 1e-8)
   
-# Prediction 
-# preds = forward(all_params, X_train[0:200,], y = None, pred = True)
+# Prediction test
+# preds = forward(all_params, X_val[0:200,], y = y_val[0:200], pred = True)
 
 #
 def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_width, layer_sd_perc = 0.05, mean1 = 1, mean2 = 0.3, sd1 = 0.25, sd2 = 0.5, batch_size = 32, niter = 10000, init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.99, print_every = 100, check_every = 100, break_when = 10, break_perc = 0.10, lin_upd_prob = 0.99, rel_upd_prob = 0.10):
@@ -215,7 +215,7 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
    # Forward and backward passes through all layers
    for i in range(niter):
        
-       # Batch setup
+       # Sampling random mini batch of training examples
        rand_inx = np.random.randint(0, X.shape[0], batch_size)    
        
        X_mini = X[rand_inx,]
@@ -223,7 +223,8 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
            
        # Forward pass to get loss    
        data_loss, dloss, cache = forward(all_params, X_mini, y_mini)
-       # Parameter update
+       
+       # Parameter update, global in case function gets interrupted
        globals()['all_params'], globals()['all_configs'] = backward(all_params = all_params, dloss = dloss, cache = cache, all_configs = all_configs, learning_rate = init_lr, reg = reg, beta1 = beta1, beta2 = beta2, epsilon = 1e-8, lin_upd_prob = lin_upd_prob, rel_upd_prob = rel_upd_prob)
        
        # Displaying validation accuracy and progress at batch intervals
@@ -235,7 +236,7 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
            print('Data loss {:.4f}, Val acc {:.2f}%, Val loss {:.4f}, Break {}/{}'.format(data_loss,acc*100,val_loss,break_counter,break_when))
        
        # Keep track of how well the model is learning       
-       if i % check_every == 0 and i > 1:
+       if i % check_every == 0:
            # Update best loss when record is beat, write data and reset break counter
            if val_loss < globals()['best_vloss']:
                globals()['best_vloss'] = val_loss
@@ -255,26 +256,26 @@ def training(all_params, all_configs, X, y, X_val, y_val, num_layers, layer_widt
    return None
 
 ##
-
-#all_params,all_configs,best_acc = None, None, 0
-  
-# training(all_params = all_params, all_configs = all_configs, X = X_train, y = y_train, X_val = X_val, y_val = y_val, num_layers = 20, layer_width = 1024, batch_size = 128, niter = int(1e4), init_lr = 1e-4, reg = 1e-4, beta1 = 0.99, beta2 = 0.99, print_every = 5, check_every = 5, break_when = 20)
-
 # Overfitting small subset to test out model
-# training(all_params = all_params, all_configs = all_configs, X = X_train[0:10,], y = y_train[0:10], X_val = X_train[0:10,], y_val = y_train[0:10], num_layers = 10, layer_width = 100, batch_size = 10, niter = int(1e4), init_lr = 1e-4, reg = 0, beta1 = 0.95, beta2 = 0.95, print_every = 100, check_every =  100)
+# best_vloss = 5
+# training(all_params = None, all_configs = None, X = X_train[0:30,], y = y_train[0:30], X_val = X_train[0:30,], y_val = y_train[0:30], num_layers = 8, layer_width = 512, layer_sd_perc = 0.01, mean1 = 1, mean2 = 0.3, sd1 = 0.25, sd2 = 0.5, batch_size = 10, niter = 10000, init_lr = 5e-4, reg = 0, beta1 = 0.95, beta2 = 0.99, print_every = 10, check_every = 10, break_when = 10, break_perc = 0.10, lin_upd_prob = 0.99, rel_upd_prob = 0.10)
 
-# Element wise injection of noise, not too big
-small_noise = np.vectorize(lambda x: np.random.normal(0,abs(x)/50) + x)
+##########################################
+##### Self Propogating Training Loop #####
+##########################################
+
+# Element wise injection of noise, not too big - for when training improvement slows
+small_noise = np.vectorize(lambda x: np.random.normal(0,abs(x)/100) + x)
 
 best_vloss = -np.log(1./len(np.unique(y_val)))*1.5
 
 # First learing rate and exponential decay of rate
-glob_lr = 1e-4
-dec_rate = 0.8
+glob_lr = 1e-5
+dec_rate = 0.50
 
 for i in range(10000):
     
-    # Wipe out configurations
+    # Wipe out configurations, new descent configs with each iteration
     all_configs = None
     
     # Reading in parameters if they aren't in memory
@@ -287,15 +288,16 @@ for i in range(10000):
     if len(all_params.keys()) == 0:
         all_params = None
     
-    print('Restarting training')
+    print('Starting training')
     
+    # Randomly sampling beta1, beta2, regularization parameters
     training(all_params = all_params, 
              all_configs = all_configs, 
              X = X_train, 
              y = y_train, 
              X_val = X_val, 
              y_val = y_val, 
-             num_layers = 15, 
+             num_layers = 5, 
              layer_width = 4096,
              layer_sd_perc = 0.05, 
              mean1 = 1, 
@@ -313,19 +315,19 @@ for i in range(10000):
              break_when = 50, 
              break_perc = 0.02,
              lin_upd_prob = 0.99, 
-             rel_upd_prob = 0.01)
+             rel_upd_prob = 0.10)
 
     # Decaying the learning rate after break or completion of training round
     glob_lr *= dec_rate 
     # Adding noise if last update was a while ago
-    if i % 10 == 0 and i > 0:
+    if i % 20 == 0 and i > 0:
         print('Adding noise to parameters, resetting best loss')
-        # Resetting best loss
+        # Resetting best validation loss
         best_vloss = -np.log(1./len(np.unique(y_val)))*1.5
         np.save(file = 'C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt/Accs/RESET'+str(i), arr = np.array([0]))
         # Increasing learning rate a bit to move out of lower accuracy faster
-        glob_lr *= 1/(dec_rate**9)
-        # Injecting noise into all parameters
+        glob_lr *= 1/(dec_rate**15)
+        # Injecting noise into all parameters, get out of local minimum
         for key in all_params:
             if key == 'num_layers':
                 continue
@@ -340,5 +342,3 @@ for key in all_params:
         size += all_params[key].size
     
 print ('{:,} parameters totaling {:,.0f} MB'.format(size,size*64/(8*10**6))) 
-
-# 234,871,758 parameters totaling 1,879 MB

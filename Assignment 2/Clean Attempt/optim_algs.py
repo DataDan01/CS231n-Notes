@@ -6,22 +6,25 @@ Created on Sat Mar 25 13:54:30 2017
 """
 
 from numba import jit
-
 import numpy as np
+
+# http://cs231n.github.io/neural-networks-3/#ada
+# http://int8.io/comparison-of-optimization-techniques-stochastic-gradient-descent-momentum-adagrad-and-adadelta/#Adam_8211_description
+# Use moving averages of magnitude and direction of gradient vector
 
 @jit
 def adam(x, dx, config=None):
   """
   Uses the Adam update rule, which incorporates moving averages of both the
-  gradient and its square and a bias correction term.
-  config format:
-  - learning_rate: Scalar learning rate.
-  - beta1: Decay rate for moving average of first moment of gradient.
-  - beta2: Decay rate for moving average of second moment of gradient.
-  - epsilon: Small scalar used for smoothing to avoid dividing by zero.
-  - m: Moving average of gradient.
-  - v: Moving average of squared gradient.
-  - t: Iteration number.
+  gradient and its square + bias correction
+  Config format:
+  - learning_rate: Scalar learning rate
+  - beta1: Decay rate for moving average of first moment of gradient
+  - beta2: Decay rate for moving average of second moment of gradient
+  - epsilon: Small scalar used for smoothing to avoid dividing by zero
+  - m: Moving average of gradient
+  - v: Moving average of squared gradient
+  - t: Iteration number
   """
   if config is None: config = {}
   config.setdefault('learning_rate', 1e-3)
@@ -33,6 +36,8 @@ def adam(x, dx, config=None):
   config.setdefault('t', 0)
 
   config['t'] += 1
+        
+  # Exponential moving average
   config['m'] = config['beta1']*config['m'] + (1-config['beta1'])*dx
   config['v'] = config['beta2']*config['v'] + (1-config['beta2'])*(dx**2)
 

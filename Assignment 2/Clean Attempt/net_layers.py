@@ -20,7 +20,6 @@ def affine_forward(x, w, b):
   Returns:
   - aff_out: output, of shape (N, M)
   """
-
   # Computing dot product
   aff_out = np.dot(x, w) + b
   
@@ -84,7 +83,6 @@ def relu_forward(x, a, q):
 # relu_out_test = relu_forward(x = aff_out_test, a = np.random.randn(100)/50+1/10, q = np.random.randn(100)/20+1)
 
 @jit 
-# Making it leaky
 def relu_backward(dout, aff_out, a, q):
   """
   Computes the backward pass for a layer of parametric rectified linear units (PReLUs).
@@ -261,7 +259,9 @@ def batchnorm_backward(dout, xhat, gamma, xmu, var, eps = 1e-8):
 
   return dx, dgamma, dbeta
 
-# 
+# http://cs231n.github.io/linear-classify/#softmax
+# The cross-entropy objective wants the predicted distribution to have all of its mass on the correct answer
+# We are minimizing the negative log likelihood of the correct class, maximizing the likelihood of the correct clas (negative * monotonically increasing function)
 @jit 
 def softmax_loss(x, y):
   """
