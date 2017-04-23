@@ -9,7 +9,7 @@ import numpy as np
 from numba import jit
 import re
 
-os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt')
+os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt Conv')
 
 # Getting the data
 exec(open('./data_load.py').read())
