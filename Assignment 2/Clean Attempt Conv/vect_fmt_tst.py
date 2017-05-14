@@ -42,7 +42,7 @@ depth = X_train[0].shape[2]
 
 arr = np.reshape(X_train[0], np.prod(X_train[0].shape))
 
-def pad_filter(arr, orig_dim, depth, filter_size = 3):
+def pad_filter(arr, orig_dim = 32, depth = 3, filter_size = 3):
     """
   Figures out how to correctly pad a numpy array with zeros and pass a filter over it
   Input:
@@ -98,20 +98,20 @@ def pad_filter(arr, orig_dim, depth, filter_size = 3):
     return padded_vect, vect_map
 
 # Testing
-test_pad,test_map = pad_filter(np.reshape(X_train[0],3072), 
-                               orig_dim = 32, 
-                               depth = 3, 
-                               filter_size = 3)
+padded_vect,vect_map = pad_filter(np.reshape(X_train[0],3072), 
+                                  orig_dim = 32, 
+                                  depth = 3, 
+                                  filter_size = 3)
 
-t = test_pad[test_map]
+t = padded_vect[vect_map]
 
-test_pad.nbytes+test_map.nbytes # 138336
+padded_vect.nbytes+vect_map.nbytes # 138336
 
 t.nbytes # 221184
 
 # Setting up convolution function that adheres to format above
 
-filter_w = np.random.randn(3**2)
+filter_w = np.random.randn(3**2,15)
 
 def convolve(padded_vect, vect_map, filter_w):
     """
@@ -119,11 +119,56 @@ def convolve(padded_vect, vect_map, filter_w):
   Input:
       - padded_vect: Skinny version of image volume with zeroes in the correct places for the filter to work
       - vect_map: Array of indices that represents a filter passing over the vect_map
-      - filter_w: Minial set of weights to represent the filter
+      - filter_w: Minial set of weights to represent the filters, matrix
   Output: 
-      - new_volume: Matrix that represents various filters passing over the input volume
+      - flat_vol: Flattened volume resulting from filters passed over input volume
+      - dim: True dimensionality of output volume
+      - depth: Number of filters applied, depth of new volume
     """
     
+    # Reshape and transpose the padded filtered vector
+    x_mat = np.reshape(padded_vect[vect_map],(filter_w.shape[0],-1)).T
     
+    # Spread filters out
+    new_vol = x_mat.dot(filter_w)
     
-    return 1
+    # Getting descriptive statistics
+    depth = new_vol.shape[1]
+    
+    # Flatting volume
+    flat_vol = np.reshape(new_vol,-1)
+    
+    return flat_vol, depth
+
+# Testing all together now
+# 32 * 32 * 3 in, 32 * 32 * 48 (16*3) out
+padded_vect1, vect_map1 = pad_filter(arr = np.reshape(X_train[0],-1),
+                                     orig_dim = 32,
+                                     depth = 3,
+                                     filter_size = 3)
+
+flat_vol1, depth1 = convolve(padded_vect = padded_vect1,
+                             vect_map = vect_map1,
+                             filter_w = np.random.randn(3**2,16))
+
+# 32 * 32 * 48 in, 32 * 32 * 64 (16*4) out
+
+padded_vect2, vect_map2 = pad_filter(arr = flat_vol1,
+                                     orig_dim = 32,
+                                     depth = depth1,
+                                     filter_size = 3)
+
+flat_vol2, depth2 = convolve(padded_vect = padded_vect2,
+                             vect_map = vect_map2,
+                             filter_w = np.random.randn(3**2,4))
+
+# 32 * 32 * 64 in, 32 * 32 * 16 (4*4) out
+
+padded_vect3, vect_map3 = pad_filter(arr = flat_vol2,
+                                     orig_dim = 32,
+                                     depth = depth2,
+                                     filter_size = 3)
+
+flat_vol3, depth3 = convolve(padded_vect = padded_vect3,
+                             vect_map = vect_map3,
+                             filter_w = np.random.randn(3**2,4))
