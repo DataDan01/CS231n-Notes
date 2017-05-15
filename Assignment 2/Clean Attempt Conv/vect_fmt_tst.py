@@ -119,11 +119,9 @@ def convolve(padded_vect, vect_map, filter_w):
   Input:
       - padded_vect: Skinny version of image volume with zeroes in the correct places for the filter to work
       - vect_map: Array of indices that represents a filter passing over the vect_map
-      - filter_w: Minial set of weights to represent the filters, matrix
+      - filter_w: Set of weights to represent the filters, matrix
   Output: 
       - flat_vol: Flattened volume resulting from filters passed over input volume
-      - dim: True dimensionality of output volume
-      - depth: Number of filters applied, depth of new volume
     """
     
     # Reshape and transpose the padded filtered vector
@@ -132,43 +130,112 @@ def convolve(padded_vect, vect_map, filter_w):
     # Spread filters out
     new_vol = x_mat.dot(filter_w)
     
-    # Getting descriptive statistics
-    depth = new_vol.shape[1]
-    
     # Flatting volume
     flat_vol = np.reshape(new_vol,-1)
     
-    return flat_vol, depth
+    return flat_vol
 
 # Testing all together now
 # 32 * 32 * 3 in, 32 * 32 * 48 (16*3) out
 padded_vect1, vect_map1 = pad_filter(arr = np.reshape(X_train[0],-1),
                                      orig_dim = 32,
                                      depth = 3,
-                                     filter_size = 3)
+                                     filter_size = 1)
 
-flat_vol1, depth1 = convolve(padded_vect = padded_vect1,
+flat_vol1 = convolve(padded_vect = padded_vect1,
                              vect_map = vect_map1,
-                             filter_w = np.random.randn(3**2,16))
+                             filter_w = np.random.randn(3**1,16))
 
 # 32 * 32 * 48 in, 32 * 32 * 64 (16*4) out
 
 padded_vect2, vect_map2 = pad_filter(arr = flat_vol1,
                                      orig_dim = 32,
-                                     depth = depth1,
+                                     depth = 16,
                                      filter_size = 3)
 
-flat_vol2, depth2 = convolve(padded_vect = padded_vect2,
+flat_vol2 = convolve(padded_vect = padded_vect2,
                              vect_map = vect_map2,
-                             filter_w = np.random.randn(3**2,4))
+                             filter_w = np.random.randn(16*3**2,16))
 
 # 32 * 32 * 64 in, 32 * 32 * 16 (4*4) out
 
 padded_vect3, vect_map3 = pad_filter(arr = flat_vol2,
                                      orig_dim = 32,
-                                     depth = depth2,
-                                     filter_size = 3)
+                                     depth = 16,
+                                     filter_size = 5)
 
-flat_vol3, depth3 = convolve(padded_vect = padded_vect3,
+flat_vol3 = convolve(padded_vect = padded_vect3,
                              vect_map = vect_map3,
-                             filter_w = np.random.randn(3**2,4))
+                             filter_w = np.random.randn(16*5**2,16))
+
+# Combining vector padding and convolution into single function
+def padded_convolution(arr, orig_dim, filter_w, filter_size, depth):
+    
+    """
+  Pads input volume and performs convolution, returns result of conv and intermediate information
+  Input:
+      - arr: Numpy vector, skinny one dimensional version of a volume
+      - orig_dim: Original height & width of the volume
+      - depth: Original depth of the volume
+      - filter_size: The size of the filer passed over the image the filter to work
+      - filter_w: Set of weights to represent the filters, matrix
+  Output: 
+      - flat_vol: Flattened volume resulting from filters passed over input volume
+      - padded_vect: The padded vector with all of the 0s in the correct places
+      - vect_map: The map that contains index locations of the filter moving across the padded image
+    """
+    
+    padded_vect, vect_map = pad_filter(arr, orig_dim, depth, filter_size)
+    
+    flat_vol = convolve(padded_vect, vect_map, filter_w)
+    
+    return flat_vol, padded_vect, vect_map
+
+#
+
+flat_vol_t, padded_vect_t, vect_map_t = padded_convolution(
+        arr = np.reshape(X_train[0],-1),
+        filter_size = 3,
+        orig_dim = 32,
+        depth = 3,
+        filter_w = np.random.randn(3*1**2,16))
+
+# Stacking three layers of flat convs together
+depth = 3
+
+filter_ws = [np.random.randn(3*1**2,16),
+             np.random.randn(3*3**2,16),
+             np.random.randn(3*5**2,16)]
+
+arr = np.reshape(X_train[0],-1)
+
+orig_dim = 32
+
+def multi_conv(arr, orig_dim, depth, filter_ws):
+    
+    # Extracting filter sizes
+    filter_sizes = [int(np.sqrt(filt.shape[0]//depth)) for filt in filter_ws] 
+    
+    # Setting up empty dictionaries for results
+    flat_vols, padded_vects, vect_maps = {},{},{}
+    
+    # Padding vectors appropriately and performing convolutions
+    for i in range(len(filter_ws)):
+        
+        f_str = 'f_'+str(filter_sizes[i])
+        
+        flat_vols[f_str],padded_vects[f_str],vect_maps[f_str] = padded_convolution(
+                arr = arr,
+                orig_dim = orig_dim,
+                filter_w = filter_ws[i],
+                filter_size = filter_sizes[i],
+                depth = depth)
+        
+    return flat_vols, padded_vects, vect_maps
+
+#
+
+arrays = np.reshape(X_train[0:32],(3072,-1))
+
+# Accumulates batch of flattened volumes
+t = np.apply_along_axis(multi_conv, 0, arrays, orig_dim, depth, filter_ws)
