@@ -7,11 +7,15 @@ Created on Sun Apr 23 19:03:41 2017
 
 import os
 import numpy as np
+from numba import jit
 
 os.chdir('C:/Users/Stat-Comp-01/OneDrive/Python/CS231n/Assignment 2/Clean Attempt Conv')
 
 # Getting the data
 exec(open('./data_load.py').read())
+
+# Getting other functions
+exec(open('./net_layers.py').read())
 
 x = X_train[0:10,]
 w = np.random.randn(5,3,3,3)
@@ -127,7 +131,7 @@ def convolve(padded_vect, vect_map, filter_w):
     # Reshape and transpose the padded filtered vector
     x_mat = np.reshape(padded_vect[vect_map],(filter_w.shape[0],-1)).T
     
-    # Spread filters out
+    # Apply filters
     new_vol = x_mat.dot(filter_w)
     
     # Flatting volume
@@ -172,7 +176,7 @@ flat_vol3 = convolve(padded_vect = padded_vect3,
 def padded_convolution(arr, orig_dim, filter_w, filter_size, depth):
     
     """
-  Pads input volume and performs convolution, returns result of conv and intermediate information
+  Pads input volume and performs convolution, returns result of conv and intermediate information for use in gradient
   Input:
       - arr: Numpy vector, skinny one dimensional version of a volume
       - orig_dim: Original height & width of the volume
@@ -203,39 +207,93 @@ flat_vol_t, padded_vect_t, vect_map_t = padded_convolution(
 # Stacking three layers of flat convs together
 depth = 3
 
-filter_ws = [np.random.randn(3*1**2,16),
-             np.random.randn(3*3**2,16),
-             np.random.randn(3*5**2,16)]
+filter_ws = [np.random.randn(3*1**2,4),
+             np.random.randn(3*3**2,4),
+             np.random.randn(3*5**2,4)]
 
 arr = np.reshape(X_train[0],-1)
 
 orig_dim = 32
 
 def multi_conv(arr, orig_dim, depth, filter_ws):
-    
+    """
+    Applies multiple convolutions to the same input volume, formatted as a vector
+    Input:
+        - arr: Input volume formatted as a single dimensional array
+        - orig_dim: Original dimension of the input volume
+        - depth: Depth of the input volume
+        - filter_ws: List of filters
+    Output:
+        - flat_vols: Flattened single dimensional arrays of volumes from the convolution
+        - padded_vects: Intermediate vectors padded with zeros to maintain size
+        - vect_maps: Maps that dictate where how to correctly repeat and spread out the padded_vects so that the convolution works as a matrix multiplication
+    """
     # Extracting filter sizes
     filter_sizes = [int(np.sqrt(filt.shape[0]//depth)) for filt in filter_ws] 
     
-    # Setting up empty dictionaries for results
-    flat_vols, padded_vects, vect_maps = {},{},{}
+    # Setting up empty objects for results
+    flat_vols = np.zeros((filter_ws[0].shape[0],filter_ws[0].shape[1]*orig_dim**2))
+    
+    padded_vects, vect_maps = {},{}
     
     # Padding vectors appropriately and performing convolutions
     for i in range(len(filter_ws)):
         
-        f_str = 'f_'+str(filter_sizes[i])
+        p_str = 'p_'+str(filter_sizes[i])
+        m_str = 'm_'+str(filter_sizes[i])
         
-        flat_vols[f_str],padded_vects[f_str],vect_maps[f_str] = padded_convolution(
+        flat_vols[i,:],padded_vects[p_str],vect_maps[m_str] = padded_convolution(
                 arr = arr,
                 orig_dim = orig_dim,
                 filter_w = filter_ws[i],
                 filter_size = filter_sizes[i],
                 depth = depth)
         
-    return flat_vols, padded_vects, vect_maps
+    # Combining flattened volumes into one object
+    flat_vols = np.reshape(flat_vols,(np.prod(flat_vols.shape)))
+    
+    # Formatting output
+    out = {'volume': flat_vols,
+           'p_vects': padded_vects,
+           'm_vects': vect_maps}
+    
+    return out 
 
 #
 
 arrays = np.reshape(X_train[0:32],(3072,-1))
 
 # Accumulates batch of flattened volumes
-t = np.apply_along_axis(multi_conv, 0, arrays, orig_dim, depth, filter_ws)
+def batch_multi_conv(arrays, orig_dim, depth, filter_ws):
+    """
+    Simply applies multi_conv over an array input
+    """
+    
+    m_cv_dat = {}
+    
+    for i in range(arrays.shape[1]):
+        
+        m_cv_dat['obs_'+str(i)] = multi_conv(arrays[:,i], orig_dim, depth, filter_ws)
+    
+    return m_cv_dat
+
+# Forward prop test
+
+# Conv
+conv_res = batch_multi_conv(arrays, orig_dim, depth, filter_ws)
+
+aff_in = np.concatenate([[conv_res[key]['volume'] for key in conv_res]])
+
+# Affine
+aff_w = np.random.randn(conv_res['obs_0']['volume'].shape[0],
+                        conv_res['obs_0']['volume'].shape[0])
+
+aff_b = np.random.randn(conv_res['obs_0']['volume'].shape[0])
+
+aff_out = affine_forward(aff_in, aff_w, aff_b)
+
+# Batch Norm
+bn_aff,_,_,_ = batchnorm_forward(aff_out, gamma = 1, beta = 0, eps = 1e-8)
+
+# PReLu
+rel_res = relu_forward(bn_aff, a = 1, q = 0.05)
